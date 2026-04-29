@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tool-Wizard × Chainwright — design your own tool belt</title>
+<meta name="description" content="A two-faced project: Chainwright is a library of recipe tools you compose from primitives. Tool-Wizard is the conductor that fires up your whole coding tool belt on a project in seconds." />
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #faf8f3;
+    --rule: #d6cfbe;
+    --muted: #5b5650;
+    --accent-c: #b04a2f;   /* Chainwright accent — terracotta */
+    --accent-t: #2f5fb0;   /* Tool-Wizard accent — slate blue */
+    --code-bg: #efeadc;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  pre {
+    background: var(--code-bg); padding: 12px 14px; border-radius: 6px;
+    font-size: 0.88em; overflow-x: auto; margin: 0.6em 0;
+  }
+  h1, h2, h3 { font-weight: 700; line-height: 1.2; margin: 0 0 0.4em; }
+  h1 { font-size: clamp(2rem, 4vw, 2.7rem); letter-spacing: -0.01em; }
+  h2 { font-size: 1.4rem; letter-spacing: -0.005em; }
+  h3 { font-size: 1.05rem; }
+  p, li { margin: 0 0 0.7em; }
+
+  /* Layout shell */
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 28px 80px;
+  }
+  header.hero {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 32px;
+    margin-bottom: 32px;
+  }
+  header.hero .eyebrow {
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  header.hero p.lede {
+    font-size: 1.12rem;
+    max-width: 64ch;
+    color: var(--ink);
+    margin-top: 14px;
+  }
+  header.hero p.sub {
+    color: var(--muted);
+    max-width: 64ch;
+    margin-top: 6px;
+  }
+
+  /* Two columns */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .col {
+    padding: 28px 28px 36px;
+  }
+  .col + .col { border-left: 1px solid var(--rule); }
+  @media (max-width: 760px) {
+    .columns { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--rule); }
+  }
+  .col .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .col-c .badge { background: var(--accent-c); color: var(--paper); }
+  .col-t .badge { background: var(--accent-t); color: var(--paper); }
+  .col-c h2 { color: var(--accent-c); }
+  .col-t h2 { color: var(--accent-t); }
+  .col h2 .role {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 0.95rem;
+    letter-spacing: 0;
+    margin-left: 6px;
+  }
+
+  .pattern-list {
+    list-style: none;
+    padding: 0;
+    margin: 14px 0 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .pattern-list li {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.5);
+  }
+  .pattern-list strong { display: block; }
+  .pattern-list .ex { color: var(--muted); font-size: 0.92rem; font-style: italic; }
+
+  .belt-list { padding-left: 1.2em; }
+  .belt-list li { margin-bottom: 0.4em; }
+  .belt-list code { font-size: 0.85em; }
+
+  .form-factors {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .form-factors li {
+    padding: 8px 12px;
+    border-left: 3px solid var(--rule);
+    background: rgba(255,255,255,0.5);
+  }
+  .form-factors li.shipped { border-left-color: var(--accent-t); }
+  .form-factors li.shipped::before {
+    content: "✓ ";
+    color: var(--accent-t);
+    font-weight: bold;
+  }
+  .form-factors li.todo::before {
+    content: "○ ";
+    color: var(--muted);
+  }
+  .form-factors .when {
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin-left: 6px;
+  }
+
+  /* Sections below the columns */
+  section.below {
+    margin-top: 44px;
+  }
+  section.below h2 {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+  .reading-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .reading-list li {
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.5);
+    margin: 0;
+  }
+  .reading-list .title { font-weight: 600; display: block; margin-bottom: 4px; }
+  .reading-list .desc { color: var(--muted); font-size: 0.9rem; }
+
+  footer.foot {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* Status callout */
+  .status {
+    background: #fff8e6;
+    border: 1px solid #d8c98a;
+    border-radius: 5px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    color: #6b5a17;
+    margin-top: 18px;
+  }
+  .status strong { color: #4f4310; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">Tool-Wizard × Chainwright</div>
+    <h1>Design your own tool belt.</h1>
+    <p class="lede">
+      One project, two faces. <strong style="color:var(--accent-c)">Chainwright</strong>
+      is a growing library of recipe tools, each composed from a small set of
+      recombinant primitives. <strong style="color:var(--accent-t)">Tool-Wizard</strong>
+      is the conductor that fires up your whole coding tool belt — credentials,
+      memory, sessions, GitHub state — on a specific project in seconds.
+    </p>
+    <p class="sub">
+      Composition here is shape-based: every primitive declares its slots, and
+      every classifier returns the same envelope. Things connect because they
+      agree on contracts — not because we've axiomatized the algebra. (No, it
+      isn't a monad. Yet.)
+    </p>
+  </header>
+
+  <div class="columns">
+
+    <!-- ============ CHAINWRIGHT (consumer face) ============ -->
+    <div class="col col-c">
+      <div class="badge">Chainwright</div>
+      <h2>The library<span class="role">/ consumer entry</span></h2>
+      <p>
+        Describe a friction in plain language. Chainwright classifies it to one
+        of eight named patterns, then surfaces the recipe tools in the library
+        that already use that pattern. You clone, remix, and learn the grammar
+        by recognition — not by curriculum.
+      </p>
+
+      <h3>The eight friction patterns</h3>
+      <ol class="pattern-list">
+        <li><strong>Memory Failure</strong>
+          <span class="ex">"I forgot what I captured before."</span></li>
+        <li><strong>State Tracking</strong>
+          <span class="ex">"I don't know what stage this is in."</span></li>
+        <li><strong>Repetitive Language</strong>
+          <span class="ex">"I keep retyping the same intro emails."</span></li>
+        <li><strong>Comparison Overload</strong>
+          <span class="ex">"I have 40 PDFs and can't rank them."</span></li>
+        <li><strong>Don't-Know-Next</strong>
+          <span class="ex">"What's my first move tomorrow?"</span></li>
+        <li><strong>Scattered Attention</strong>
+          <span class="ex">"Where is everyone on my team?"</span></li>
+        <li><strong>Collecting From Others</strong>
+          <span class="ex">"How do I gather input without chaos?"</span></li>
+        <li><strong>Time-Sensitive Triggers</strong>
+          <span class="ex">"I need reminders that branch on outcomes."</span></li>
+      </ol>
+
+      <h3>Named recipe shapes</h3>
+      <p>
+        Recipes cluster into named combos so the grammar is learnable:
+        <strong>The Pipeline</strong>, <strong>The Pulse</strong>,
+        <strong>The Drip</strong>, <strong>The Scorecard</strong>,
+        <strong>The Ritual</strong>, <strong>The Reuse Kit</strong>.
+        ~24 recipes drafted in the design library across these shapes.
+      </p>
+
+      <div class="status">
+        <strong>Status.</strong> Diagnostic UI and recipe library are still
+        in design. The classifier is currently keyword-based; LLM swap is
+        a drop-in (preserves <code>{ pattern, confidence, evidence,
+        alternatives, ranked_matches }</code>).
+      </div>
+    </div>
+
+    <!-- ============ TOOL-WIZARD (conductor face) ============ -->
+    <div class="col col-t">
+      <div class="badge">Tool-Wizard</div>
+      <h2>The conductor<span class="role">/ developer entry</span></h2>
+      <p>
+        Tool-Wizard fires up your whole coding tool belt on a specific project
+        in one phrase. It runs four phases against the same repo, threading
+        context from each into the next, and returns one dashboard so you know
+        what's loaded and what needs attention before you start writing code.
+      </p>
+
+      <h3>The belt</h3>
+      <ul class="belt-list">
+        <li><strong>Keysmith</strong> — credential health and injection
+          (<code>mcp__keysmith__*</code>)</li>
+        <li><strong>repo-memory</strong> — project canon, constraints, prior
+          session state (<code>mcp__repo-memory__*</code>)</li>
+        <li><strong>IGNITION</strong> — bounded coding sessions with
+          checkpoints and receipts (<code>mcp__ignition__*</code>)</li>
+        <li><strong>GitHub MCP</strong> — read/write bridge to the actual
+          repository (<code>mcp__github__*</code>)</li>
+      </ul>
+
+      <h3>Three form factors</h3>
+      <ul class="form-factors">
+        <li class="shipped"><strong>v1 — Cowork chat skill</strong>
+          <span class="when">drafted</span><br>
+          <span style="color:var(--muted); font-size:0.92rem">
+            "fire up Open-Case" / <code>/tool-wizard</code> →
+            four-phase orchestration, one dashboard.
+          </span>
+        </li>
+        <li class="todo"><strong>v2 — Terminal CLI</strong>
+          <span class="when">planned</span><br>
+          <span style="color:var(--muted); font-size:0.92rem">
+            <code>tw fire ~/Open-Case</code> from any terminal.
+          </span>
+        </li>
+        <li class="todo"><strong>v3 — Mac Shortcut</strong>
+          <span class="when">planned</span><br>
+          <span style="color:var(--muted); font-size:0.92rem">
+            One menu-bar button that calls v2 on the foreground project.
+          </span>
+        </li>
+      </ul>
+
+      <h3>Install</h3>
+      <p>
+        v1 is a skill bundle (a <code>.skill</code> file = zip with known
+        extension) installed in Cowork. After packaging from
+        <code>skills/tool-wizard/SKILL.md</code>, drop the file into Cowork —
+        click <em>Save skill</em> — restart the chat.
+      </p>
+      <pre>bash ~/My tool kit/Tool-Wizard/package.sh</pre>
+
+      <div class="status">
+        <strong>Heads up.</strong> The <code>github-mcp-server</code> is
+        currently broken on every call (logs/ cwd bug). Patch ready; PR
+        in the queue. Other three MCPs are unaffected.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ DESIGN PRINCIPLES ============ -->
+  <section class="below">
+    <h2>Design principles, both faces</h2>
+    <ul>
+      <li><strong>Each tool stays sovereign.</strong> Keysmith owns creds.
+        IGNITION owns sessions. repo-memory owns project knowledge. GitHub
+        MCP owns the repo. Tool-Wizard composes them — never duplicates.</li>
+      <li><strong>Read first, write never (in v1).</strong> The conductor
+        reads state and reports. Writes (init, begin a session, comment on a
+        PR) happen only after the user explicitly asks.</li>
+      <li><strong>Primitives stay recombinant.</strong> A primitive only
+        belongs in the Chainwright library if at least one other recipe
+        could plausibly use it. No domain-locked monoliths.</li>
+      <li><strong>Confidence is marked explicitly.</strong> Slots and
+        primitives carry Stable / Experimental / Custom labels. You always
+        see what's proven vs. in-flight.</li>
+      <li><strong>Plain text first.</strong> Memory, canon, constraints,
+        sessions — all markdown / YAML on disk. No DB, no embeddings,
+        no LLM calls inside the memory layer.</li>
+      <li><strong>Don't call it monadic.</strong> Composition is
+        contract-uniform. That's the property that makes monads composable —
+        but the algebra (bind, return, laws) hasn't been lifted. Either
+        spec it or describe it accurately.</li>
+    </ul>
+  </section>
+
+  <!-- ============ FURTHER READING ============ -->
+  <section class="below">
+    <h2>Further reading</h2>
+    <ul class="reading-list">
+      <li>
+        <a class="title" href="https://github.com/Swixixle/Tool-Wizard">github.com/Swixixle/Tool-Wizard</a>
+        <span class="desc">Repo home. README, INSTALL, the v1 skill source, packaged <code>.skill</code> bundle.</span>
+      </li>
+      <li>
+        <a class="title" href="https://github.com/Swixixle/repo-memory">repo-memory</a>
+        <span class="desc">The <code>.memory/</code> schema (canon, constraints, current-state, sessions).</span>
+      </li>
+      <li>
+        <a class="title" href="https://github.com/Swixixle/Keyp-Away">Keysmith (Keyp-Away)</a>
+        <span class="desc">Credential health + scoped injection.</span>
+      </li>
+      <li>
+        <a class="title" href="https://github.com/Swixixle/IGNITION">IGNITION</a>
+        <span class="desc">Bounded coding sessions with checkpoints and receipts.</span>
+      </li>
+      <li>
+        <a class="title" href="https://github.com/Swixixle/github-mcp-server">github-mcp-server</a>
+        <span class="desc">Read/write bridge to GitHub. (Patch in flight for the logs/ cwd bug.)</span>
+      </li>
+    </ul>
+  </section>
+
+  <footer class="foot">
+    <div>© 2026 Swixixle · made by hand · ISC</div>
+    <div>
+      <a href="https://github.com/Swixixle">github.com/Swixixle</a>
+      &nbsp;·&nbsp;
+      <a href="#" onclick="return false">v1 — first deploy</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
