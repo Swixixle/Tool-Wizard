@@ -1,0 +1,69 @@
+# Constraints — non-negotiables and current phase
+# Edit by hand; this file is read fresh on every memory_start.
+
+phase: v1-conductor-drafted-chainwright-not-built
+
+invariants:
+  - id: tools-stay-sovereign
+    rule: |
+      Each MCP in the belt owns its domain. Keysmith owns credentials;
+      IGNITION owns sessions; repo-memory owns project knowledge; GitHub
+      MCP owns the repo. Tool-Wizard composes them. Never duplicate their
+      logic inside the conductor.
+
+  - id: read-first-write-never-v1
+    rule: |
+      In v1 the conductor reads state from every tool and never writes.
+      Writes (init, begin a session, comment on a PR) require explicit
+      user confirmation per call. Surfacing dashboards is read-only.
+
+  - id: primitives-stay-recombinant
+    rule: |
+      Chainwright primitives must appear in multiple recipes. No
+      domain-locked monolithic tools. If a recipe needs a one-off
+      capability, factor it as a primitive that other recipes could also
+      use, or accept that it doesn't belong in the library yet.
+
+  - id: confidence-marked-explicitly
+    rule: |
+      Slots and primitives carry explicit confidence levels (Custom,
+      Experimental, Stable). Users always see what's proven vs. in-flight.
+
+  - id: classifier-contract-frozen
+    rule: |
+      The classifier returns { pattern, confidence, evidence,
+      alternatives, ranked_matches }. Any swap (keyword -> LLM, or
+      LLM -> different LLM) must preserve this shape exactly so the
+      library and downstream UI don't have to change.
+
+  - id: dashboard-shape-stable
+    rule: |
+      Tool-Wizard's report layout (Keysmith / repo-memory / IGNITION /
+      GitHub / Next move) is fixed. New phases are appended, not
+      inserted. Users learn the layout; don't move sections around.
+
+  - id: plain-text-first
+    rule: |
+      Memory, canon, constraints, sessions all live in plain markdown /
+      YAML. No databases, no embeddings, no vector store inside the
+      memory layer itself. (This is per repo-memory's own design rule;
+      we inherit it for Tool-Wizard's project memory too.)
+
+forbidden_moves:
+  - Adding a write side-effect to a Tool-Wizard phase silently. Any new
+    write must be opt-in via explicit user input, not cascaded through
+    the conductor.
+  - Locking a primitive to a single recipe. A primitive only belongs in
+    the library if at least one other recipe could plausibly use it.
+  - Coupling Chainwright's friction-pattern vocabulary to a specific LLM.
+    The classifier swap is a stated v2 goal; freezing the classifier
+    contract is what protects this.
+  - Calling Tool-Wizard a "monad" or "monadic" without specifying bind
+    semantics. Either spec the algebra or describe it accurately as
+    contract-uniform primitive composition.
+
+current_focus:
+  - The github-mcp-server crashes on every tool call (logs/ cwd bug).
+    Patch ready at outputs/fix-logs-cwd.patch; PR not yet opened.
+  - .memory/ initialization (this file).
+  - Netlify docs site: side-by-side Chainwright + Tool-Wizard scaffold.

@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Netlify deploy artifacts (zips Netlify uploads from)
+site/deploy-*.zip
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
