@@ -57,9 +57,13 @@ _Last updated: 2026-04-29 — end of Session 1 (the "ignite the belt" session)._
 - repo-memory MCP `cwd` was unset in `claude_desktop_config.json`.
   Added `"cwd": "/Users/alexmaksimovich/My tool kit/Tool-Wizard"`.
   Backup saved at `claude_desktop_config.json.bak-20260429-110437`.
-  **Takes effect on next Cmd-Q + relaunch of Claude.** Until that
-  relaunch, `memory_start` will still report "not initialized" because
-  the running server still has the old (unset) cwd.
+  **The edit didn't take effect after a Claude restart.** Diagnostic
+  showed the running repo-memory process still has cwd=`/`. Suspected
+  cause: Cowork mode reads MCP config from a separate location we
+  haven't found, OR Cowork doesn't honor the `cwd` field on spawn.
+  Workaround: read `.memory/*` directly with the file tool when
+  memory_start fails — files are durable, on disk and on GitHub,
+  no MCP layer needed. Codifying this into SKILL.md is a future task.
 
 **Tool-Wizard repo:**
 - Pushed all local content to `Swixixle/Tool-Wizard` main as commit
