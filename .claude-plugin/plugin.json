@@ -1,0 +1,8 @@
+{
+  "name": "tool-wizard",
+  "version": "0.4.0",
+  "description": "Conductor for the coding tool belt — Keysmith, repo-memory, IGNITION, and GitHub MCP — fired by /fire (universal one-word warm-up), /ignite, or /tool-wizard. /fire is the new canonical verb: reads .memory/ directly from the mounted project, no MCP cwd dance, no Cmd-Q. Works on every project.",
+  "author": {
+    "name": "Alex Maksimovich"
+  }
+}

@@ -65,5 +65,18 @@ forbidden_moves:
 current_focus:
   - The github-mcp-server crashes on every tool call (logs/ cwd bug).
     Patch ready at outputs/fix-logs-cwd.patch; PR not yet opened.
-  - .memory/ initialization (this file).
   - Netlify docs site: side-by-side Chainwright + Tool-Wizard scaffold.
+  - Repackage the plugin (now ships ignite + tool-wizard skills plus
+    bundled IGNITION .mcp.json) and reinstall in Cowork. Hot-deploy
+    snippet in INSTALL.md works for SKILL.md-only changes.
+
+resolved_2026_05_01:
+  - .memory/ initialization (canon, constraints, current-state).
+  - Project metadata persisted in .memory/current-state.md so the
+    conductor reads the GitHub slug instead of guessing.
+  - tool-wizard SKILL.md hardened: explicit project_path passing,
+    structured project resolution including ~/My tool kit/, IGNITION
+    graceful failure when MCP not yet loaded.
+  - ignite SKILL.md added as a sibling skill (no longer "defer to
+    tool-wizard"); the procedure is embedded so a single .plugin
+    install gives both verbs the right behavior.

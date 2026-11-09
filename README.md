@@ -54,10 +54,20 @@ Code/Cursor workspace).
 ```
 Tool-Wizard/
 ├── README.md                       (you are here)
-├── INSTALL.md                      how to install the v1 skill in Cowork
+├── INSTALL.md                      how to package + install the plugin
+├── .claude-plugin/
+│   └── plugin.json                 plugin manifest (name, version, author)
+├── .mcp.json                       bundled MCP servers (IGNITION)
 ├── skills/
-│   └── tool-wizard/
-│       └── SKILL.md                the v1 chat skill
+│   ├── tool-wizard/
+│   │   └── SKILL.md                canonical conductor skill
+│   └── ignite/
+│       └── SKILL.md                one-word alias skill (same procedure)
+├── .memory/
+│   ├── canon.md                    what this project is / isn't
+│   ├── constraints.yaml            invariants + current focus
+│   ├── current-state.md            project metadata (path, GitHub slug, etc.)
+│   └── sessions/                   per-session summaries
 ├── cli/                            (v2 — not yet implemented)
 └── shortcuts/                      (v3 — not yet implemented)
 ```

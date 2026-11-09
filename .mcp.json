@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "ignition": {
+      "command": "/Users/alexmaksimovich/Desktop/IGNITION/.venv/bin/ignition-mcp"
+    }
+  }
+}

@@ -1,68 +1,97 @@
-# Tool-Wizard skill — install
+# Tool-Wizard plugin — install
 
-The v1 skill lives at `skills/tool-wizard/SKILL.md`. It needs to be
-loaded into Cowork as an installable skill before Claude will pick up
-the trigger phrases.
+This repo ships **two skills** in one Claude plugin:
+
+- `skills/tool-wizard/SKILL.md` — the canonical conductor (verb: `tool wizard`,
+  `/tool-wizard`, "fire it up", etc.).
+- `skills/ignite/SKILL.md` — the one-word alias (verb: `ignite`, `/ignite`,
+  "press ignition"). Same procedure, different trigger.
+
+It also bundles the IGNITION MCP server config (`.mcp.json` at the repo
+root) so installing the plugin auto-registers IGNITION-MCP — no separate
+`claude_desktop_config.json` edits required.
 
 ## Prerequisites
 
-You need the four MCPs from the tool belt already wired into Cowork:
+The other three MCPs must already be wired into Cowork:
 
 - **Keysmith** — `mcp__keysmith__*`
 - **repo-memory** — `mcp__repo-memory__*`
-- **IGNITION** — `mcp__ignition__*` (run `~/My tool kit/ignition-mcp/install.sh` if you haven't yet)
 - **GitHub MCP** — `mcp__github__*`
 
-Tool-Wizard is the conductor — it expects the orchestra to be in the
-room. If a phase's MCP isn't installed, the skill notes it in the
-dashboard and skips the section instead of crashing, but you'll get
-more value by having all four available.
+IGNITION's binary lives at
+`/Users/alexmaksimovich/Desktop/IGNITION/.venv/bin/ignition-mcp` (built from
+`~/My tool kit/ignition-mcp`). The plugin's `.mcp.json` already points at
+that path. If you move IGNITION, update both files.
+
+If a phase's MCP isn't installed, the conductor notes it in the dashboard
+and skips the section instead of crashing. You'll get more value with all
+four available.
 
 ## Install (Cowork)
 
-1. From this folder, package the skill:
+1. From this folder, package the plugin:
 
    ```bash
-   bash "/Users/alexmaksimovich/My tool kit/Tool-Wizard/package.sh"
+   cd "/Users/alexmaksimovich/My tool kit/Tool-Wizard"
+   zip -r tool-wizard.plugin .claude-plugin .mcp.json skills
    ```
 
-   (Or run the skill-creator's `package_skill.py` directly — see below.)
+   That `.plugin` is just a zip with a known extension; Cowork knows
+   how to install it. (Older versions used `.skill` for skill-only
+   bundles. `.plugin` is the right format because we now ship an
+   `.mcp.json` too.)
 
-   This produces `tool-wizard.skill` next to the SKILL.md. A `.skill` is
-   just a zip with a known extension; Cowork knows how to install it.
+2. Cowork should render a **"Install plugin"** button on the
+   `.plugin` file when I present it back to you. Click it.
 
-2. Cowork should render a **"Save skill"** install button on the
-   `.skill` file when I present it back to you. Click that.
-
-3. Restart the chat (or start a new one) so the skill list refreshes.
+3. **Restart Claude Desktop** so the MCP servers in the bundled
+   `.mcp.json` are picked up. (This is a one-time step per install.
+   Plain skill updates don't need a restart — only `.mcp.json`
+   changes do.)
 
 ## Verify it's loaded
 
-Type `/tool-wizard` or just say *"fire it up"* — Claude should ask
-which project and then run the four-phase orchestration. If nothing
-happens, the skill description didn't trigger and we need to tune it.
-That's iteration territory; tell me and we'll re-run the trigger evals.
+Type `/ignite` or `/tool-wizard` — Claude should:
 
-## Update the skill
+1. Resolve the project from `.memory/current-state.md` (or ask once).
+2. Run Keysmith doctor with the explicit `project_path`.
+3. Run repo-memory `memory_start`.
+4. Check IGNITION (`mcp__ignition__ignition_current`).
+5. Hit GitHub with the slug from `.memory/current-state.md`.
+6. Return one dashboard.
 
-Skills are tiny — usually you just edit `skills/tool-wizard/SKILL.md`,
-re-package, re-install. There's no version pinning to worry about.
+If Phase 1 reports a project name OTHER than the one you asked for,
+the conductor shortcut the `project_path` arg — re-read the SKILL.md
+non-negotiable rules, or report it as a bug.
+
+## Update the skills
+
+Edit `skills/tool-wizard/SKILL.md` and/or `skills/ignite/SKILL.md`,
+re-package, re-install. No version pinning to worry about.
+
+## Hot-deploy a SKILL.md change without re-packaging
+
+If you only changed a SKILL.md (no `.mcp.json` change, no plugin
+manifest change), you can copy the file directly into the active
+plugin install and skip the package + reinstall step:
+
+```bash
+PLUGIN_DIR="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
+# Find the active install of the ignite plugin:
+find "$PLUGIN_DIR" -path "*/rpm/*/skills/ignite/SKILL.md" -print
+
+# Then for each match, replace it with the source from this repo:
+SRC="/Users/alexmaksimovich/My tool kit/Tool-Wizard/skills/ignite/SKILL.md"
+find "$PLUGIN_DIR" -path "*/rpm/*/skills/ignite/SKILL.md" \
+  -exec cp "$SRC" {} \;
+```
+
+Same pattern for `tool-wizard/SKILL.md`. SKILL.md text is read on
+session start — open a new chat to pick up the change.
 
 ## Uninstall
 
-Cowork's skill UI has a remove option. The four MCP servers are
-independent of this skill, so removing Tool-Wizard does not affect
-Keysmith, IGNITION, etc.
-
-## Manual packaging (alternative)
-
-If the convenience script is missing or you want to do it by hand:
-
-```bash
-SKILL_DIR="/Users/alexmaksimovich/My tool kit/Tool-Wizard/skills/tool-wizard"
-python3 -m scripts.package_skill "$SKILL_DIR"
-```
-
-That's the `package_skill.py` tool from Anthropic's skill-creator skill,
-which is shipped with Cowork. The output is a `.skill` file you can
-install via the same flow as above.
+Cowork's plugin UI has a remove option. Removing the plugin removes
+both skills and the IGNITION MCP entry. The other three MCP servers
+(Keysmith, repo-memory, GitHub) are independent of this plugin.

@@ -10,3 +10,6 @@ site/deploy-*.zip
 
 # OS
 Thumbs.db
+
+# IGNITION runtime output
+ignition_data/

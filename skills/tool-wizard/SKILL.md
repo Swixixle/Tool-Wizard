@@ -18,153 +18,140 @@ description: >-
 
 # Tool-Wizard
 
-Tool-Wizard is the conductor for the user's coding tool belt. The belt is
-four MCP servers the user installed earlier:
+Conductor for the user's coding tool belt. Fires four MCP servers in a fixed
+order against the same project and returns one dashboard.
 
-- **Keysmith** — credential health and injection.
-- **repo-memory** — project canon, constraints, and prior session state.
-- **IGNITION** — bounded coding sessions with checkpoints and receipts.
-- **GitHub MCP** — read/write bridge to the actual repository.
+## The non-negotiable rules
 
-Each tool is independently useful. Tool-Wizard makes them play together: it
-runs them in the right order against the same project, threads context from
-one into the next, and returns a single dashboard so the user knows what's
-loaded and what needs attention before they start coding.
+These rules exist because the conductor has burned the user before. Follow
+them exactly.
 
-## Why this matters
+1. **Always pass `project_path` explicitly to every tool that takes one.**
+   In particular `mcp__keysmith__doctor` falls back to
+   `KEYSMITH_DEFAULT_PROJECT` (currently `Open-Case`) when called with no
+   args. That fallback will silently report against the wrong project. Never
+   call any tool without the path — pass it on every single call.
+2. **Resolve the project once, at the top, and reuse the result.** Do not
+   re-resolve mid-run. Do not let parallel tool calls each guess.
+3. **Read the GitHub slug from `.memory/current-state.md` first.** Only fall
+   back to parsing `.git/config` if the slug isn't recorded. Never guess
+   from the user's email handle.
+4. **If IGNITION MCP isn't loaded, mark Phase 3 "pending Claude Desktop
+   restart" and continue.** Do not abort the dashboard.
 
-Without Tool-Wizard the user has to remember:
+## Step 0 — Resolve the project path
 
-1. Did I check creds? (Keysmith)
-2. Is this repo's memory loaded, or do I need to init? (repo-memory)
-3. Do I have an active session, and if not should I start or resume? (IGNITION)
-4. What's the state of GitHub — open PRs, unmerged work, blocking reviews?
+Resolution order — stop at the first hit:
 
-That's four separate prompts and four separate cognitive steps. Tool-Wizard
-collapses it to one command and one dashboard. The user opens their laptop,
-says "fire up Open-Case", and is in a tracked session with creds verified,
-memory loaded, and GitHub state surfaced — in under a minute.
+1. **Explicit path or repo name in the user's message** ("fire up Open-Case"
+   → resolve "Open-Case"). If they gave a path, use it as-is.
+2. **Most recently mentioned project in the conversation** (read recent
+   turns; if exactly one project was being discussed, that's it).
+3. **Read `.memory/current-state.md` from the cwd's repo** — if the file has
+   a `project_path:` key in its YAML block, use that value.
+4. **Search common roots in this order:**
+   `~`, `~/code`, `~/dev`, `~/repos`, `~/Desktop`, `~/Documents`,
+   `~/My tool kit`. Match case-insensitively. If multiple matches, ask once.
+5. **Ask the user once** — do not guess wildly.
 
-## When to trigger
+The result is `RESOLVED_PROJECT_PATH`. Pass it to every phase below.
 
-Trigger eagerly. The cost of triggering when the user only wanted a single
-tool is small (you can short-circuit after running just that phase). The
-cost of NOT triggering when the user wanted the belt is high — they have to
-manually re-state the orchestration.
+## Step 1 — Read project metadata from `.memory/current-state.md`
 
-Trigger when the user:
+Read `<RESOLVED_PROJECT_PATH>/.memory/current-state.md`. Extract any of
+these keys from the YAML block:
 
-- Says any of the trigger phrases in the description.
-- Names a repo and says they're starting / sitting down / coming back to it.
-- Asks for a "status across everything" or "where am I" on a project.
-- Wants a single unified report combining credentials, sessions, and repo state.
+- `project_name`
+- `github_owner`, `github_repo`
+- `default_branch`
+- `ignition_binary`
 
-Do **not** trigger when the user is clearly asking for one specific tool
-(e.g., "run keysmith doctor", "what's the canon say"). Defer to the direct
-tool call there.
+If `github_owner` or `github_repo` is missing, fall back to parsing
+`<RESOLVED_PROJECT_PATH>/.git/config`: find the `[remote "origin"]`
+section, take the `url`, parse owner and repo from one of:
+`https://github.com/<owner>/<repo>.git` or `git@github.com:<owner>/<repo>.git`.
+Trim the trailing `.git`.
 
-## Inputs
-
-The skill needs a project path. Resolution order:
-
-1. Explicit path or repo name in the user's message
-   (e.g., "fire up Open-Case" → ``/Users/<user>/Open-Case``).
-2. The most recently mentioned project in the conversation.
-3. Ask the user once: *"Which project should I fire up?"* — then proceed.
-
-Repo names get resolved by trying common roots (``~``, ``~/code``,
-``~/dev``, ``~/repos``) before asking. If multiple matches, ask the user
-to pick.
+If neither source has it, ask the user once for the slug and persist it
+back to `.memory/current-state.md` for next time.
 
 ## The four-phase sequence
 
-Always run the phases in this order. Threading order matters — later phases
-read what earlier phases discovered (e.g., the GitHub phase uses the repo's
-remote, which the memory phase confirms).
+Run the phases in this order. Each phase MUST receive `RESOLVED_PROJECT_PATH`
+as its `project_path` argument where the tool accepts one.
 
 ### Phase 1 — Credentials (Keysmith)
 
-Call ``mcp__keysmith__doctor`` with ``project_path`` set to the resolved
-project root.
+Call `mcp__keysmith__doctor` with `project_path=<RESOLVED_PROJECT_PATH>`.
+Required, not optional — see rule #1.
 
-What you're checking:
+Surface:
+- Credentials marked `missing` whose `detected_in` is non-empty (the
+  project actually uses them — these are real blockers).
+- Anything `expired` or `stale`.
+- If the project has zero credentials in source, write "clean" and move on.
 
-- Are required env vars present (in keychain or ``.env``)?
-- Are any credentials marked ``missing`` that the project actually uses
-  (i.e., they appear in source under ``detected_in``)?
-- Are any credentials expired or stale?
-
-Surface anything that's blocking. If a credential is missing AND the project
-clearly uses it (multiple ``detected_in`` entries), call this out as a
-red-flag finding the user should resolve before serious work. Don't try to
-inject anything yourself — Keysmith's job is to report; only the user
-authorizes injection.
+Never inject. Keysmith reports; the user authorizes injection.
 
 ### Phase 2 — Repo memory
 
-Call ``mcp__repo-memory__memory_start`` with the project path.
+Call `mcp__repo-memory__memory_start` (no args — it uses its own cwd).
 
-If it errors with *".memory/ not found — run memory init"*, do not silently
-init. Tell the user the repo isn't memory-initialized and ask whether to
-run ``memory init``. Initializing creates files in their repo, which is a
-write they should approve.
+If it errors with `.memory/ not found`, ask the user whether to run
+`memory init` (a write — needs explicit consent). Do not silently init.
 
-If memory_start succeeds, capture and surface:
-
-- The project canon (one short paragraph from ``memory_get_canon`` if needed).
-- Active constraints (key invariants, things not to break).
-- The most recent session summary, if any — what was last done on this repo.
-
-This is the "where I left off" piece, but pulled from repo-memory rather
-than IGNITION (IGNITION is the next phase and is session-scoped; repo-memory
-is project-scoped).
+If it succeeds, surface:
+- Canon (one paragraph from `memory_get_canon`).
+- Active constraints (key invariants from `memory_get_constraints`).
+- Most recent session summary, if any.
 
 ### Phase 3 — IGNITION session
 
-Call ``mcp__ignition__ignition_current`` first to see whether a session is
-already active.
+First check whether IGNITION MCP is loaded by looking for any
+`mcp__ignition__*` tool in the available tools.
 
-- **Active session on the same branch:** report it (task, duration, last
-  checkpoint) and *do not* start a new one.
-- **Active session on a different branch:** report it and ask whether to
-  resume it (``ignition_resume``) or stop it before starting fresh.
-- **No active session:** call ``ignition_next`` to fetch the last-stop
-  carry-forward block from this branch (todos / risks / questions). Use
-  that to suggest a task name. Then ask the user whether to:
-  - ``ignition_begin`` with a suggested task, or
-  - ``ignition_resume --latest`` if there's an unfinished session.
-
-Never silently start a session. The session frames the work and writes a
-receipt; the user should consciously open it.
+- **Not loaded:** mark Phase 3 as
+  `pending — IGNITION MCP not registered; restart Claude Desktop to load`.
+  Continue with the rest of the dashboard. Don't abort.
+- **Loaded:** call `mcp__ignition__ignition_current` first.
+  - **Active session, same branch:** report task / duration / last
+    checkpoint. Do not start a new one.
+  - **Active session, different branch:** report and ask whether to resume
+    or stop before starting fresh.
+  - **No active session:** call `ignition_next` for carry-forward (todos /
+    risks / questions). Suggest a task name. Ask whether to `ignition_begin`
+    or `ignition_resume --latest`. Never silently start a session.
 
 ### Phase 4 — GitHub state
 
-Call ``mcp__github__github_list_issues`` and (if available) any PR-listing
-tool to surface:
+Use `github_owner` / `github_repo` from Step 1.
 
-- Open PRs the user authored, especially review-blocked ones.
-- Open issues assigned to the user or labelled with anything that came up
-  in the memory canon / IGNITION carry-forward.
-- The default branch's last commit (so the user knows whether to pull).
+Call:
+- `mcp__github__github_list_issues` with `state=open`.
+- A PR-listing tool if available.
 
-Do not open PRs or comment on anything in this phase. This is read-only
-context. Anything that needs writing happens later, deliberately, with the
-user driving.
+Surface:
+- Open PRs the user authored (review-blocked first).
+- Open issues assigned or labelled with anything from the canon /
+  IGNITION carry-forward.
+- Default branch's last commit (so the user knows whether to pull).
+
+Read-only. Never open, comment, or merge in this phase.
 
 ## The dashboard
 
-After all four phases, return one structured summary. Use this template
-exactly — consistency matters because the user's eye learns the layout:
+Return one structured summary. Use this template exactly — the layout is
+stable per `dashboard-shape-stable` constraint.
 
 ```markdown
 ## Tool-Wizard report — <project name>
 
-**Project:** <absolute path>
+**Project:** <RESOLVED_PROJECT_PATH>
 **Branch:** <current branch>
 
 ### 🔑 Keysmith
-<one-line summary, e.g. "9 creds present, 4 missing — only API_KEY is actually used in source.">
-<bullet list of issues that need user action; omit section if clean>
+<one-line summary>
+<bullets for blockers; omit if clean>
 
 ### 🧠 Repo memory
 <one-line summary>
@@ -173,7 +160,7 @@ exactly — consistency matters because the user's eye learns the layout:
 - Last session: <ISO date + one-line summary, or "no prior sessions">
 
 ### 🔥 IGNITION
-<one-line status — active / paused / none>
+<one-line status — active / paused / none / pending restart>
 - <task / branch / duration if active>
 - Carry-forward (from last stop): <todos, risks, questions if any>
 - Suggested next: <begin / resume / nothing>
@@ -187,67 +174,29 @@ exactly — consistency matters because the user's eye learns the layout:
 <one to three concrete suggestions, ordered by importance>
 ```
 
-Keep each section short. The user is reading this to orient — not to
-audit. If a section has nothing notable, write *"clean"* and move on.
-
-## Examples
-
-**Example 1: clean fire-up**
-
-User: *"fire up Open-Case"*
-
-Tool-Wizard resolves ``/Users/<user>/Open-Case``, runs the four phases,
-finds an active IGNITION session from this morning on
-``feature/api-hardening``, no missing creds in actual use, no blocking PRs.
-
-Returns the dashboard with "IGNITION: active" and a one-line "Next move:
-``ignition_status`` to confirm scope before adding tests."
-
-**Example 2: stale memory + missing cred**
-
-User: *"kick off Tool-Wizard"*
-
-Resolves ``~/My tool kit/Tool-Wizard``. memory_start errors (not
-initialized). Keysmith reports nothing because there are no creds in source
-yet. No IGNITION session.
-
-Returns the dashboard with "Repo memory: not initialized — run
-``memory init``?" as the suggested next move, and "IGNITION: not started —
-run ``ignition_init`` once the repo is ready."
-
-**Example 3: branch mismatch**
-
-User: *"warm up IGNITION repo, I'm gonna fix the receipt schema"*
-
-Resolves ``~/IGNITION``. Active IGNITION session is on
-``feature/handoff-rewrite``. User wants to work on a different branch.
-
-Skill explicitly asks: *"There's already an active IGNITION session on
-``feature/handoff-rewrite`` — should I stop it and start a fresh one for
-the schema work, or are we resuming the handoff session?"* before doing
-anything.
+If a section has nothing notable, write *"clean"* and move on.
 
 ## Failure modes
 
-- **One MCP server is down.** Keep going. Mark the failed phase in the
-  dashboard with a note explaining what wasn't checked. Don't abort the
-  whole run — three quarters of a dashboard is still useful.
+- **One MCP server is down.** Keep going. Mark the failed phase. Three
+  quarters of a dashboard is still useful.
 - **The project path doesn't exist.** Stop. Ask once. Don't guess wildly.
 - **Conflicting active state** (e.g., IGNITION session on a different
-  branch than the repo is currently on): report the conflict instead of
-  papering over it.
+  branch than the repo is on): report the conflict, don't paper over it.
+- **`KEYSMITH_DEFAULT_PROJECT` mismatch** (Keysmith reports a different
+  project name than `RESOLVED_PROJECT_PATH`): you forgot to pass
+  `project_path`. Re-call with the explicit path. This is the #1 bug.
 
 ## What this skill is not
 
-- Not a session manager. IGNITION owns sessions; this skill just orchestrates.
+- Not a session manager. IGNITION owns sessions; this skill orchestrates.
 - Not a credential manager. Keysmith owns that; this skill only reports.
-- Not a linter, not a formatter, not a test runner. Adding a tool to the
-  belt is a separate, deliberate decision — don't slip new behaviour in
-  through Tool-Wizard.
+- Not a linter, formatter, or test runner.
 
 ## Extending the belt
 
 If the user later adds another MCP server (e.g., a code-coverage tool, a
-deployment status tool), add a new phase to the sequence in this skill.
-Each phase should be: *call the tool's read-only inspect endpoint, surface
-what's notable, never write*.
+deployment status tool), add a new phase to the sequence. Each phase
+should be: *call the tool's read-only inspect endpoint, surface what's
+notable, never write*. New phases get appended, never inserted —
+dashboard layout is stable.
